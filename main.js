@@ -8,6 +8,7 @@ let sshStream = null;
 let automationComplete = false;
 let storedPassword = null; // Store password for sudo reuse
 let authenticationComplete = false;
+let pendingAuth = null; // Store pending keyboard-interactive auth
 
 // SSH Configuration
 const SSH_CONFIG = {
@@ -70,16 +71,28 @@ ipcMain.handle('connect-ssh', async () => {
       sshClient = new Client();
       let buffer = '';
       let automationStep = 0;
-      let awaitingCredential = null; // Track what credential we're waiting for
 
       // Handle keyboard-interactive authentication
       sshClient.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
         console.log('Keyboard-interactive auth triggered');
         console.log('Prompts:', prompts);
 
-        // This will be handled by prompts in the data stream instead
-        // We'll use a simpler approach with stream interception
-        finish([]);
+        // Store the finish callback
+        pendingAuth = { prompts, finish, responses: [] };
+
+        // Process each prompt
+        prompts.forEach((prompt, index) => {
+          const promptText = prompt.prompt.toLowerCase();
+          console.log(`Prompt ${index}: ${prompt.prompt}`);
+
+          if (promptText.includes('login') || promptText.includes('username')) {
+            // Request username from user
+            mainWindow.webContents.send('prompt-username');
+          } else if (promptText.includes('password')) {
+            // Request password from user
+            mainWindow.webContents.send('prompt-password');
+          }
+        });
       });
 
       sshClient.on('ready', () => {
@@ -93,6 +106,7 @@ ipcMain.handle('connect-ssh', async () => {
           }
 
           sshStream = stream;
+          authenticationComplete = true;
 
           // Signal renderer to show terminal view
           mainWindow.webContents.send('show-terminal');
@@ -109,63 +123,42 @@ ipcMain.handle('connect-ssh', async () => {
             // Check for various prompts
             const lowerBuffer = buffer.toLowerCase();
 
-            // Authentication phase - intercept credentials
-            if (!authenticationComplete) {
-              // Check for username/login prompt
-              if ((lowerBuffer.includes('login:') || lowerBuffer.includes('username:')) && !awaitingCredential) {
-                awaitingCredential = 'username';
-                mainWindow.webContents.send('prompt-username');
-                buffer = '';
-              }
-              // Check for password prompt (initial login)
-              else if (lowerBuffer.includes('password:') && !awaitingCredential && !storedPassword) {
-                awaitingCredential = 'password';
-                mainWindow.webContents.send('prompt-password');
-                buffer = '';
-              }
-              // Check for successful login ($ or # prompt)
-              else if ((buffer.includes('$') || buffer.includes('#')) && storedPassword) {
-                authenticationComplete = true;
-                awaitingCredential = null;
-                buffer = '';
-
-                // Start automation sequence
-                console.log('Authentication complete, starting automation...');
-                setTimeout(() => {
-                  automationStep = 0;
-                  stream.write('sudo -s\n');
-                }, 500);
-              }
-            }
-            // Automation phase
-            else if (authenticationComplete && !automationComplete) {
-              // Step 1: After sudo -s, check for password prompt
-              if (automationStep === 0 && lowerBuffer.includes('password:')) {
-                console.log('Sudo password prompt detected, sending stored password...');
-                stream.write(storedPassword + '\n');
+            // Automation phase - starts after successful SSH auth
+            if (authenticationComplete && !automationComplete) {
+              // Step 0: Wait for initial prompt, then send sudo
+              if (automationStep === 0 && (buffer.includes('$') || buffer.includes('#'))) {
+                console.log('Initial prompt detected, elevating to root...');
+                stream.write('sudo -s\n');
                 buffer = '';
                 automationStep = 1;
               }
-              // Step 2: After sudo password, wait for root prompt
-              else if (automationStep === 1 && buffer.includes('#')) {
-                console.log('Root access obtained, sourcing msver...');
-                stream.write('. msver\n');
+              // Step 1: After sudo -s, check for password prompt
+              else if (automationStep === 1 && lowerBuffer.includes('password:')) {
+                console.log('Sudo password prompt detected, sending stored password...');
+                stream.write(storedPassword + '\n');
                 buffer = '';
                 automationStep = 2;
               }
-              // Step 3: After msver, change directory
+              // Step 2: After sudo password, wait for root prompt
               else if (automationStep === 2 && buffer.includes('#')) {
-                console.log('Changing to MedSolution directory...');
-                stream.write('cd /usr1/medsol/kapos\n');
+                console.log('Root access obtained, sourcing msver...');
+                stream.write('. msver\n');
                 buffer = '';
                 automationStep = 3;
               }
-              // Step 4: After cd, start msgo
+              // Step 3: After msver, change directory
               else if (automationStep === 3 && buffer.includes('#')) {
+                console.log('Changing to MedSolution directory...');
+                stream.write('cd /usr1/medsol/kapos\n');
+                buffer = '';
+                automationStep = 4;
+              }
+              // Step 4: After cd, start msgo
+              else if (automationStep === 4 && buffer.includes('#')) {
                 console.log('Starting MedSolution application...');
                 stream.write('msgo\n');
                 buffer = '';
-                automationStep = 4;
+                automationStep = 5;
 
                 // Wait a moment for msgo to start, then complete automation
                 setTimeout(() => {
@@ -204,13 +197,13 @@ ipcMain.handle('connect-ssh', async () => {
         resetState();
       });
 
-      // Connect without credentials - let the stream handle prompts
+      // Connect with keyboard-interactive auth
       console.log('Connecting to', SSH_CONFIG.host);
       sshClient.connect({
         host: SSH_CONFIG.host,
         port: SSH_CONFIG.port,
-        tryKeyboard: true,
-        // No username or password - we'll provide them interactively
+        username: '', // Empty username triggers keyboard-interactive
+        tryKeyboard: true
       });
 
     } catch (error) {
@@ -222,20 +215,40 @@ ipcMain.handle('connect-ssh', async () => {
 
 // Handle username submission from modal
 ipcMain.handle('submit-username', async (event, username) => {
-  if (sshStream) {
-    console.log('Sending username:', username);
-    sshStream.write(username + '\n');
+  console.log('Received username:', username);
+
+  if (pendingAuth) {
+    // This is during keyboard-interactive auth
+    pendingAuth.responses.push(username);
+
+    // Check if we have all responses
+    if (pendingAuth.responses.length === pendingAuth.prompts.length) {
+      console.log('All auth responses collected, finishing auth');
+      pendingAuth.finish(pendingAuth.responses);
+      pendingAuth = null;
+    }
   }
+
   return { success: true };
 });
 
 // Handle password submission from modal
 ipcMain.handle('submit-password', async (event, password) => {
-  if (sshStream) {
-    console.log('Sending password (stored for sudo)');
-    storedPassword = password; // Store for sudo reuse
-    sshStream.write(password + '\n');
+  console.log('Received password (storing for sudo)');
+  storedPassword = password; // Store for sudo reuse
+
+  if (pendingAuth) {
+    // This is during keyboard-interactive auth
+    pendingAuth.responses.push(password);
+
+    // Check if we have all responses
+    if (pendingAuth.responses.length === pendingAuth.prompts.length) {
+      console.log('All auth responses collected, finishing auth');
+      pendingAuth.finish(pendingAuth.responses);
+      pendingAuth = null;
+    }
   }
+
   return { success: true };
 });
 
@@ -278,4 +291,5 @@ function resetState() {
   automationComplete = false;
   authenticationComplete = false;
   storedPassword = null;
+  pendingAuth = null;
 }
