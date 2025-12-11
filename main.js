@@ -95,60 +95,73 @@ ipcMain.handle('connect-ssh', async (event, { username, password }) => {
             const chunk = data.toString('utf8');
             buffer += chunk;
 
+            // Limit buffer size to prevent memory issues
+            if (buffer.length > 1000) {
+              buffer = buffer.slice(-1000);
+            }
+
             // Always send data to terminal for visual feedback
             mainWindow.webContents.send('terminal-data', chunk);
 
-            console.log('Received:', chunk.substring(0, 100));
+            console.log('Received chunk:', chunk);
+            console.log('Current automationStep:', automationStep);
+            console.log('Buffer (last 200 chars):', buffer.slice(-200));
 
             // Check for various prompts
             const lowerBuffer = buffer.toLowerCase();
+            const lowerChunk = chunk.toLowerCase();
 
             // Automation phase - starts after successful SSH auth
             if (authenticationComplete && !automationComplete) {
               // Step 0: Wait for initial prompt, then send sudo
               if (automationStep === 0 && (buffer.includes('$') || buffer.includes('#'))) {
                 console.log('Initial prompt detected, elevating to root...');
-                stream.write('sudo -s\n');
-                buffer = '';
-                automationStep = 1;
+                setTimeout(() => {
+                  stream.write('sudo -s\n');
+                  automationStep = 1;
+                }, 100);
               }
               // Step 1: After sudo -s, check for password prompt
-              else if (automationStep === 1 && lowerBuffer.includes('password:')) {
+              else if (automationStep === 1 && (lowerBuffer.includes('password') || lowerChunk.includes('password'))) {
                 console.log('Sudo password prompt detected, sending stored password...');
-                stream.write(storedPassword + '\n');
-                buffer = '';
-                automationStep = 2;
+                setTimeout(() => {
+                  stream.write(storedPassword + '\n');
+                  automationStep = 2;
+                }, 100);
               }
               // Step 2: After sudo password, wait for root prompt
               else if (automationStep === 2 && buffer.includes('#')) {
                 console.log('Root access obtained, sourcing msver...');
-                stream.write('. msver\n');
-                buffer = '';
-                automationStep = 3;
+                setTimeout(() => {
+                  stream.write('. msver\n');
+                  automationStep = 3;
+                }, 100);
               }
               // Step 3: After msver, change directory
               else if (automationStep === 3 && buffer.includes('#')) {
                 console.log('Changing to MedSolution directory...');
-                stream.write('cd /usr1/medsol/kapos\n');
-                buffer = '';
-                automationStep = 4;
+                setTimeout(() => {
+                  stream.write('cd /usr1/medsol/kapos\n');
+                  automationStep = 4;
+                }, 100);
               }
               // Step 4: After cd, start msgo
               else if (automationStep === 4 && buffer.includes('#')) {
                 console.log('Starting MedSolution application...');
-                stream.write('msgo\n');
-                buffer = '';
-                automationStep = 5;
-
-                // Wait a moment for msgo to start, then complete automation
                 setTimeout(() => {
-                  automationComplete = true;
-                  console.log('Automation complete!');
+                  stream.write('msgo\n');
+                  automationStep = 5;
 
-                  // Signal renderer to hide modals and focus terminal
-                  mainWindow.webContents.send('automation-complete');
-                  resolve({ success: true });
-                }, 1000);
+                  // Wait a moment for msgo to start, then complete automation
+                  setTimeout(() => {
+                    automationComplete = true;
+                    console.log('Automation complete!');
+
+                    // Signal renderer to hide modals and focus terminal
+                    mainWindow.webContents.send('automation-complete');
+                    resolve({ success: true });
+                  }, 1000);
+                }, 100);
               }
             }
           });
