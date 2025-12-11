@@ -1,0 +1,20 @@
+{
+  "ssh": {
+    "host": "10.1.1.1",
+    "port": 22,
+    "username": "USER_NAME",
+    "password": "PASSWORD"
+  },
+  "automation": {
+    "commands": [
+      "sudo -s",
+      ". msver",
+      "cd /usr1/medsol/kapos",
+      "msgo"
+    ]
+  },
+  "terminal": {
+    "fontSize": 14,
+    "fontFamily": "Monaco, Menlo, 'Ubuntu Mono', Consolas, monospace"
+  }
+}
