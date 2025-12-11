@@ -8,13 +8,11 @@ let sshStream = null;
 let automationComplete = false;
 let storedPassword = null; // Store password for sudo reuse
 let authenticationComplete = false;
-let pendingAuth = null; // Store pending keyboard-interactive auth
 
 // SSH Configuration
 const SSH_CONFIG = {
   host: '10.1.1.1',
-  port: 22,
-  tryKeyboard: true // Enable keyboard-interactive auth
+  port: 22
 };
 
 function createWindow() {
@@ -65,35 +63,17 @@ app.on('window-all-closed', () => {
 });
 
 // IPC Handlers
-ipcMain.handle('connect-ssh', async () => {
+ipcMain.handle('connect-ssh', async (event, { username, password }) => {
   return new Promise((resolve, reject) => {
     try {
+      console.log('Connecting to SSH with username:', username);
+
+      // Store password for sudo later
+      storedPassword = password;
+
       sshClient = new Client();
       let buffer = '';
       let automationStep = 0;
-
-      // Handle keyboard-interactive authentication
-      sshClient.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
-        console.log('Keyboard-interactive auth triggered');
-        console.log('Prompts:', prompts);
-
-        // Store the finish callback
-        pendingAuth = { prompts, finish, responses: [] };
-
-        // Process each prompt
-        prompts.forEach((prompt, index) => {
-          const promptText = prompt.prompt.toLowerCase();
-          console.log(`Prompt ${index}: ${prompt.prompt}`);
-
-          if (promptText.includes('login') || promptText.includes('username')) {
-            // Request username from user
-            mainWindow.webContents.send('prompt-username');
-          } else if (promptText.includes('password')) {
-            // Request password from user
-            mainWindow.webContents.send('prompt-password');
-          }
-        });
-      });
 
       sshClient.on('ready', () => {
         console.log('SSH connection ready');
@@ -197,13 +177,12 @@ ipcMain.handle('connect-ssh', async () => {
         resetState();
       });
 
-      // Connect with keyboard-interactive auth
-      console.log('Connecting to', SSH_CONFIG.host);
+      // Connect with username and password
       sshClient.connect({
         host: SSH_CONFIG.host,
         port: SSH_CONFIG.port,
-        username: '', // Empty username triggers keyboard-interactive
-        tryKeyboard: true
+        username: username,
+        password: password
       });
 
     } catch (error) {
@@ -211,45 +190,6 @@ ipcMain.handle('connect-ssh', async () => {
       reject(error);
     }
   });
-});
-
-// Handle username submission from modal
-ipcMain.handle('submit-username', async (event, username) => {
-  console.log('Received username:', username);
-
-  if (pendingAuth) {
-    // This is during keyboard-interactive auth
-    pendingAuth.responses.push(username);
-
-    // Check if we have all responses
-    if (pendingAuth.responses.length === pendingAuth.prompts.length) {
-      console.log('All auth responses collected, finishing auth');
-      pendingAuth.finish(pendingAuth.responses);
-      pendingAuth = null;
-    }
-  }
-
-  return { success: true };
-});
-
-// Handle password submission from modal
-ipcMain.handle('submit-password', async (event, password) => {
-  console.log('Received password (storing for sudo)');
-  storedPassword = password; // Store for sudo reuse
-
-  if (pendingAuth) {
-    // This is during keyboard-interactive auth
-    pendingAuth.responses.push(password);
-
-    // Check if we have all responses
-    if (pendingAuth.responses.length === pendingAuth.prompts.length) {
-      console.log('All auth responses collected, finishing auth');
-      pendingAuth.finish(pendingAuth.responses);
-      pendingAuth = null;
-    }
-  }
-
-  return { success: true };
 });
 
 // Handle terminal input from renderer
@@ -291,5 +231,4 @@ function resetState() {
   automationComplete = false;
   authenticationComplete = false;
   storedPassword = null;
-  pendingAuth = null;
 }

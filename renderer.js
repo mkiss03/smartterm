@@ -1,6 +1,8 @@
 // Terminal instance and state
 let terminal = null;
 let fitAddon = null;
+let collectedUsername = null;
+let collectedPassword = null;
 
 // DOM elements - Views
 const dashboardView = document.getElementById('dashboard-view');
@@ -138,36 +140,20 @@ function switchToDashboardView() {
   hideAllModals();
 }
 
-// Connect button handler
-connectBtn.addEventListener('click', async () => {
+// Connect button handler - Show username modal first
+connectBtn.addEventListener('click', () => {
   connectBtn.disabled = true;
-  connectBtn.innerHTML = '<span>Connecting...</span>';
 
-  try {
-    // Initialize terminal before connecting
-    initTerminal();
+  // Reset credentials
+  collectedUsername = null;
+  collectedPassword = null;
 
-    // Start SSH connection
-    await window.electronAPI.connectSSH();
-
-    // Connection started successfully
-    // The flow will continue via IPC events
-  } catch (error) {
-    console.error('Connection error:', error);
-    connectBtn.disabled = false;
-    connectBtn.innerHTML = `
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-      <span>Connect to MedSolution</span>
-    `;
-    alert('Connection failed: ' + error.message);
-  }
+  // Show username modal
+  showModal(usernameModal);
 });
 
 // Username modal handlers
-usernameSubmit.addEventListener('click', async () => {
+usernameSubmit.addEventListener('click', () => {
   const username = usernameInput.value.trim();
 
   if (!username) {
@@ -175,20 +161,12 @@ usernameSubmit.addEventListener('click', async () => {
     return;
   }
 
-  usernameSubmit.disabled = true;
-  usernameSubmit.innerHTML = '<span>Submitting...</span>';
+  // Store username
+  collectedUsername = username;
 
-  await window.electronAPI.submitUsername(username);
-
-  usernameSubmit.disabled = false;
-  usernameSubmit.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
-    </svg>
-    <span>Continue</span>
-  `;
-
+  // Hide username modal and show password modal
   hideModal(usernameModal);
+  showModal(passwordModal);
 });
 
 usernameInput.addEventListener('keydown', (e) => {
@@ -206,20 +184,48 @@ passwordSubmit.addEventListener('click', async () => {
     return;
   }
 
+  // Store password
+  collectedPassword = password;
+
+  // Disable submit button
   passwordSubmit.disabled = true;
-  passwordSubmit.innerHTML = '<span>Authenticating...</span>';
+  passwordSubmit.innerHTML = '<span>Connecting...</span>';
 
-  await window.electronAPI.submitPassword(password);
-
-  passwordSubmit.disabled = false;
-  passwordSubmit.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
-    </svg>
-    <span>Authenticate</span>
-  `;
-
+  // Hide password modal
   hideModal(passwordModal);
+
+  try {
+    // Initialize terminal
+    initTerminal();
+
+    // Switch to terminal view
+    switchToTerminalView();
+
+    // Connect with collected credentials
+    await window.electronAPI.connectSSH(collectedUsername, collectedPassword);
+
+    // Connection started successfully
+    // The flow will continue via IPC events
+  } catch (error) {
+    console.error('Connection error:', error);
+
+    // Switch back to dashboard
+    switchToDashboardView();
+
+    // Reset connect button
+    connectBtn.disabled = false;
+
+    // Reset password submit button
+    passwordSubmit.disabled = false;
+    passwordSubmit.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+      </svg>
+      <span>Authenticate</span>
+    `;
+
+    alert('Connection failed: ' + error.message);
+  }
 });
 
 passwordInput.addEventListener('keydown', (e) => {
@@ -274,13 +280,6 @@ restartBtn.addEventListener('click', async () => {
 
     // Reset connect button
     connectBtn.disabled = false;
-    connectBtn.innerHTML = `
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-      <span>Connect to MedSolution</span>
-    `;
   }
 });
 
@@ -304,22 +303,10 @@ document.addEventListener('keydown', (e) => {
 
 // IPC Event Listeners
 
-// When prompted for username
-window.electronAPI.onPromptUsername(() => {
-  console.log('Username prompt received');
-  showModal(usernameModal);
-});
-
-// When prompted for password
-window.electronAPI.onPromptPassword(() => {
-  console.log('Password prompt received');
-  showModal(passwordModal);
-});
-
 // When terminal should be shown
 window.electronAPI.onShowTerminal(() => {
   console.log('Show terminal signal received');
-  switchToTerminalView();
+  // Already switched to terminal view, do nothing
 });
 
 // When terminal data arrives
@@ -342,6 +329,15 @@ window.electronAPI.onAutomationComplete(() => {
       terminal.focus();
     }, 200);
   }
+
+  // Reset password submit button
+  passwordSubmit.disabled = false;
+  passwordSubmit.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+    </svg>
+    <span>Authenticate</span>
+  `;
 });
 
 // When terminal closes
@@ -371,14 +367,16 @@ window.electronAPI.onConnectionError((message) => {
   // Reset if we're still on dashboard
   if (dashboardView.classList.contains('active')) {
     connectBtn.disabled = false;
-    connectBtn.innerHTML = `
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-      <span>Connect to MedSolution</span>
-    `;
   }
+
+  // Reset password submit button
+  passwordSubmit.disabled = false;
+  passwordSubmit.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+    </svg>
+    <span>Authenticate</span>
+  `;
 });
 
 // Initialize on load
