@@ -2,18 +2,35 @@
 let terminal = null;
 let fitAddon = null;
 
-// DOM elements
+// DOM elements - Views
 const dashboardView = document.getElementById('dashboard-view');
 const terminalView = document.getElementById('terminal-view');
+
+// DOM elements - Dashboard
 const connectBtn = document.getElementById('connect-btn');
-const statusLog = document.getElementById('status-log');
+
+// DOM elements - Terminal controls
 const saveBtn = document.getElementById('save-btn');
 const exitBtn = document.getElementById('exit-btn');
 const restartBtn = document.getElementById('restart-btn');
 const terminalContainer = document.getElementById('terminal');
 
+// DOM elements - Modals
+const usernameModal = document.getElementById('username-modal');
+const usernameInput = document.getElementById('username-input');
+const usernameSubmit = document.getElementById('username-submit');
+
+const passwordModal = document.getElementById('password-modal');
+const passwordInput = document.getElementById('password-input');
+const passwordSubmit = document.getElementById('password-submit');
+const togglePassword = document.getElementById('toggle-password');
+const eyeClosed = document.getElementById('eye-closed');
+const eyeOpen = document.getElementById('eye-open');
+
 // Initialize terminal
 function initTerminal() {
+  if (terminal) return; // Already initialized
+
   // Create terminal instance
   terminal = new Terminal({
     cursorBlink: true,
@@ -75,6 +92,33 @@ function initTerminal() {
   });
 }
 
+// Modal functions
+function showModal(modal) {
+  modal.classList.add('show');
+
+  // Focus the input
+  setTimeout(() => {
+    const input = modal.querySelector('input');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }, 100);
+}
+
+function hideModal(modal) {
+  modal.classList.remove('show');
+  const input = modal.querySelector('input');
+  if (input) {
+    input.value = '';
+  }
+}
+
+function hideAllModals() {
+  hideModal(usernameModal);
+  hideModal(passwordModal);
+}
+
 // Switch views
 function switchToTerminalView() {
   dashboardView.classList.remove('active');
@@ -84,7 +128,6 @@ function switchToTerminalView() {
   setTimeout(() => {
     if (fitAddon) {
       fitAddon.fit();
-      terminal.focus();
     }
   }, 100);
 }
@@ -92,43 +135,111 @@ function switchToTerminalView() {
 function switchToDashboardView() {
   terminalView.classList.remove('active');
   dashboardView.classList.add('active');
-}
-
-// Add status message to log
-function addStatusMessage(message, isError = false) {
-  const messageDiv = document.createElement('div');
-  messageDiv.className = 'status-message' + (isError ? ' error' : '');
-
-  const timestamp = new Date().toLocaleTimeString();
-  messageDiv.textContent = `[${timestamp}] ${message}`;
-
-  statusLog.appendChild(messageDiv);
-  statusLog.scrollTop = statusLog.scrollHeight;
-}
-
-// Clear status log
-function clearStatusLog() {
-  statusLog.innerHTML = '<div class="status-message">Ready to connect...</div>';
+  hideAllModals();
 }
 
 // Connect button handler
 connectBtn.addEventListener('click', async () => {
   connectBtn.disabled = true;
-  connectBtn.textContent = 'Connecting...';
-  clearStatusLog();
+  connectBtn.innerHTML = '<span>Connecting...</span>';
 
   try {
+    // Initialize terminal before connecting
+    initTerminal();
+
+    // Start SSH connection
     await window.electronAPI.connectSSH();
+
+    // Connection started successfully
+    // The flow will continue via IPC events
   } catch (error) {
-    addStatusMessage('Connection failed: ' + error.message, true);
+    console.error('Connection error:', error);
     connectBtn.disabled = false;
     connectBtn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 3C6.13 3 3 6.13 3 10s3.13 7 7 7 7-3.13 7-7-3.13-7-7-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-        <circle cx="10" cy="10" r="2"/>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+        <circle cx="12" cy="12" r="3"/>
       </svg>
-      Connect to MedSolution
+      <span>Connect to MedSolution</span>
     `;
+    alert('Connection failed: ' + error.message);
+  }
+});
+
+// Username modal handlers
+usernameSubmit.addEventListener('click', async () => {
+  const username = usernameInput.value.trim();
+
+  if (!username) {
+    usernameInput.focus();
+    return;
+  }
+
+  usernameSubmit.disabled = true;
+  usernameSubmit.innerHTML = '<span>Submitting...</span>';
+
+  await window.electronAPI.submitUsername(username);
+
+  usernameSubmit.disabled = false;
+  usernameSubmit.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+    </svg>
+    <span>Continue</span>
+  `;
+
+  hideModal(usernameModal);
+});
+
+usernameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    usernameSubmit.click();
+  }
+});
+
+// Password modal handlers
+passwordSubmit.addEventListener('click', async () => {
+  const password = passwordInput.value;
+
+  if (!password) {
+    passwordInput.focus();
+    return;
+  }
+
+  passwordSubmit.disabled = true;
+  passwordSubmit.innerHTML = '<span>Authenticating...</span>';
+
+  await window.electronAPI.submitPassword(password);
+
+  passwordSubmit.disabled = false;
+  passwordSubmit.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+    </svg>
+    <span>Authenticate</span>
+  `;
+
+  hideModal(passwordModal);
+});
+
+passwordInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    passwordSubmit.click();
+  }
+});
+
+// Toggle password visibility
+togglePassword.addEventListener('click', () => {
+  if (passwordInput.type === 'password') {
+    passwordInput.type = 'text';
+    eyeClosed.style.display = 'none';
+    eyeOpen.style.display = 'block';
+    togglePassword.title = 'Hide password';
+  } else {
+    passwordInput.type = 'password';
+    eyeClosed.style.display = 'block';
+    eyeOpen.style.display = 'none';
+    togglePassword.title = 'Show password';
   }
 });
 
@@ -154,6 +265,8 @@ restartBtn.addEventListener('click', async () => {
     // Clear terminal
     if (terminal) {
       terminal.clear();
+      terminal.dispose();
+      terminal = null;
     }
 
     // Switch back to dashboard
@@ -162,11 +275,11 @@ restartBtn.addEventListener('click', async () => {
     // Reset connect button
     connectBtn.disabled = false;
     connectBtn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 3C6.13 3 3 6.13 3 10s3.13 7 7 7 7-3.13 7-7-3.13-7-7-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-        <circle cx="10" cy="10" r="2"/>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+        <circle cx="12" cy="12" r="3"/>
       </svg>
-      Connect to MedSolution
+      <span>Connect to MedSolution</span>
     `;
   }
 });
@@ -190,39 +303,85 @@ document.addEventListener('keydown', (e) => {
 });
 
 // IPC Event Listeners
-window.electronAPI.onConnectionStatus((message) => {
-  addStatusMessage(message);
+
+// When prompted for username
+window.electronAPI.onPromptUsername(() => {
+  console.log('Username prompt received');
+  showModal(usernameModal);
 });
 
+// When prompted for password
+window.electronAPI.onPromptPassword(() => {
+  console.log('Password prompt received');
+  showModal(passwordModal);
+});
+
+// When terminal should be shown
+window.electronAPI.onShowTerminal(() => {
+  console.log('Show terminal signal received');
+  switchToTerminalView();
+});
+
+// When terminal data arrives
 window.electronAPI.onTerminalData((data) => {
   if (terminal) {
     terminal.write(data);
   }
 });
 
+// When automation is complete
 window.electronAPI.onAutomationComplete(() => {
-  addStatusMessage('Switching to terminal view...');
+  console.log('Automation complete!');
 
-  // Initialize terminal if not already done
-  if (!terminal) {
-    initTerminal();
+  // Hide all modals
+  hideAllModals();
+
+  // Focus terminal
+  if (terminal) {
+    setTimeout(() => {
+      terminal.focus();
+    }, 200);
   }
-
-  // Switch to terminal view
-  setTimeout(() => {
-    switchToTerminalView();
-  }, 500);
 });
 
+// When terminal closes
 window.electronAPI.onTerminalClosed(() => {
+  console.log('Terminal closed');
   if (terminal) {
     terminal.write('\r\n\x1b[1;31mConnection closed.\x1b[0m\r\n');
-    terminal.write('\x1b[1;33mPress "Restart Session" to reconnect.\x1b[0m\r\n');
+    terminal.write('\x1b[1;33mClick "Restart Session" to reconnect.\x1b[0m\r\n');
+  }
+});
+
+// When connection error occurs
+window.electronAPI.onConnectionError((message) => {
+  console.error('Connection error:', message);
+
+  // Hide all modals
+  hideAllModals();
+
+  // Show error in terminal if available
+  if (terminal) {
+    terminal.write(`\r\n\x1b[1;31mConnection Error: ${message}\x1b[0m\r\n`);
+  }
+
+  // Alert user
+  alert('Connection error: ' + message);
+
+  // Reset if we're still on dashboard
+  if (dashboardView.classList.contains('active')) {
+    connectBtn.disabled = false;
+    connectBtn.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+      <span>Connect to MedSolution</span>
+    `;
   }
 });
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
-  // Clear initial status
-  clearStatusLog();
+  console.log('MedSolution Launcher ready');
 });

@@ -14,10 +14,10 @@
     <div class="dashboard-container">
       <div class="header">
         <div class="logo">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <rect width="48" height="48" rx="8" fill="#007ACC"/>
-            <path d="M24 12L34 18V30L24 36L14 30V18L24 12Z" stroke="white" stroke-width="2" fill="none"/>
-            <circle cx="24" cy="24" r="4" fill="white"/>
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <rect width="64" height="64" rx="12" fill="#007ACC"/>
+            <path d="M32 16L45 24V40L32 48L19 40V24L32 16Z" stroke="white" stroke-width="2.5" fill="none"/>
+            <circle cx="32" cy="32" r="5" fill="white"/>
           </svg>
         </div>
         <h1>MedSolution Launcher</h1>
@@ -26,25 +26,13 @@
 
       <div class="connect-section">
         <button id="connect-btn" class="connect-button">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 3C6.13 3 3 6.13 3 10s3.13 7 7 7 7-3.13 7-7-3.13-7-7-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-            <circle cx="10" cy="10" r="2"/>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+            <circle cx="12" cy="12" r="3"/>
           </svg>
-          Connect to MedSolution
+          <span>Connect to MedSolution</span>
         </button>
-      </div>
-
-      <div class="status-section">
-        <div class="status-header">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 11a5 5 0 110-10 5 5 0 010 10z"/>
-            <circle cx="8" cy="8" r="2"/>
-          </svg>
-          <span>Connection Status</span>
-        </div>
-        <div id="status-log" class="status-log">
-          <div class="status-message">Ready to connect...</div>
-        </div>
+        <p class="connect-info">Server: 10.1.1.1:22</p>
       </div>
     </div>
   </div>
@@ -89,6 +77,99 @@
         </div>
       </div>
       <div id="terminal" class="terminal-wrapper"></div>
+    </div>
+  </div>
+
+  <!-- Username Modal -->
+  <div id="username-modal" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor">
+            <path d="M16 4a6 6 0 100 12 6 6 0 000-12zm0 10a4 4 0 110-8 4 4 0 010 8z"/>
+            <path d="M16 18c-6.627 0-12 3.373-12 7.5V28h24v-2.5c0-4.127-5.373-7.5-12-7.5zm-10 8v-.5c0-2.481 4.477-5.5 10-5.5s10 3.019 10 5.5v.5H6z"/>
+          </svg>
+        </div>
+        <h2>Username Required</h2>
+        <p>Enter your username to connect to MedSolution</p>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="username-input">Username</label>
+          <input
+            type="text"
+            id="username-input"
+            placeholder="Enter your username"
+            autocomplete="off"
+            spellcheck="false"
+            autofocus
+          />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="username-submit" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+          </svg>
+          <span>Continue</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Modal -->
+  <div id="password-modal" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor">
+            <path d="M24 12h-1V8c0-3.866-3.134-7-7-7S9 4.134 9 8v4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V14c0-1.1-.9-2-2-2zM11 8c0-2.757 2.243-5 5-5s5 2.243 5 5v4H11V8zm13 18H8V14h16v12z"/>
+            <circle cx="16" cy="20" r="2"/>
+          </svg>
+        </div>
+        <h2>Password Required</h2>
+        <p>Enter your password to authenticate</p>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="password-input">Password</label>
+          <div class="password-wrapper">
+            <input
+              type="password"
+              id="password-input"
+              placeholder="Enter your password"
+              autocomplete="off"
+              autofocus
+            />
+            <button type="button" id="toggle-password" class="toggle-password" title="Show password">
+              <svg id="eye-closed" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 7c1.657 0 3 1.343 3 3s-1.343 3-3 3-3-1.343-3-3 1.343-3 3-3zm0-2c-4.418 0-8 3-10 5 2 2 5.582 5 10 5s8-3 10-5c-2-2-5.582-5-10-5zm0 8c-1.657 0-3-1.343-3-3s1.343-3 3-3 3 1.343 3 3-1.343 3-3 3z"/>
+              </svg>
+              <svg id="eye-open" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" style="display: none;">
+                <path d="M10 7c1.657 0 3 1.343 3 3s-1.343 3-3 3-3-1.343-3-3 1.343-3 3-3zm0-2c-4.418 0-8 3-10 5 2 2 5.582 5 10 5s8-3 10-5c-2-2-5.582-5-10-5zm0 8c-1.657 0-3-1.343-3-3s1.343-3 3-3 3 1.343 3 3-1.343 3-3 3z"/>
+                <line x1="2" y1="2" x2="18" y2="18" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="password-note">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 12.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11z"/>
+            <path d="M8 4a.5.5 0 01.5.5v3a.5.5 0 01-1 0v-3A.5.5 0 018 4zm0 6a.75.75 0 100 1.5.75.75 0 000-1.5z"/>
+          </svg>
+          <span>Your password will be stored securely for the session</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="password-submit" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+          </svg>
+          <span>Authenticate</span>
+        </button>
+      </div>
     </div>
   </div>
 
