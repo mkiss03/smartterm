@@ -129,38 +129,23 @@ ipcMain.handle('connect-ssh', async (event, { username, password }) => {
                   automationStep = 2;
                 }, 100);
               }
-              // Step 2: After sudo password, wait for root prompt
+              // Step 2: After sudo password, wait for root prompt, then run chained commands
               else if (automationStep === 2 && buffer.includes('#')) {
-                console.log('Root access obtained, sourcing msver...');
+                console.log('Root access obtained, running chained MedSolution commands...');
                 setTimeout(() => {
-                  stream.write('. msver\n');
+                  // Chain commands together to preserve environment context
+                  stream.write('. msver kapos && msgo\n');
                   automationStep = 3;
-                }, 100);
-              }
-              // Step 3: After msver, change directory
-              else if (automationStep === 3 && buffer.includes('#')) {
-                console.log('Changing to MedSolution directory...');
-                setTimeout(() => {
-                  stream.write('cd /usr1/medsol/kapos\n');
-                  automationStep = 4;
-                }, 100);
-              }
-              // Step 4: After cd, start msgo
-              else if (automationStep === 4 && buffer.includes('#')) {
-                console.log('Starting MedSolution application...');
-                setTimeout(() => {
-                  stream.write('msgo\n');
-                  automationStep = 5;
 
-                  // Wait a moment for msgo to start, then complete automation
+                  // Immediately complete automation so user can interact with msgo
                   setTimeout(() => {
                     automationComplete = true;
-                    console.log('Automation complete!');
+                    console.log('Automation complete! Terminal control handed to user.');
 
                     // Signal renderer to hide modals and focus terminal
                     mainWindow.webContents.send('automation-complete');
                     resolve({ success: true });
-                  }, 1000);
+                  }, 500);
                 }, 100);
               }
             }
